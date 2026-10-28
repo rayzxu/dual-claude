@@ -1,16 +1,25 @@
 # Dual Claude
 
-在同一台 Mac 同时使用官方 Claude Code 与 CC Switch 第三方供应商。提供本机双实例和 Docker 两种入口。脚本只依赖 Python 3.9+ 标准库，本机需已安装 `claude`；容器功能另需 Docker Desktop 与 Compose v2。
+在同一台 Mac 同时使用官方 Claude 与 CC Switch 第三方供应商，支持终端 CLI、Claude Desktop 图形双实例，以及可选 Docker 隔离环境。
+
+| 使用方式 | 官方入口 | 第三方入口 | 详细说明 |
+| --- | --- | --- | --- |
+| 终端 CLI | 原生 `claude` | `claude-cc` | 下方快速开始 |
+| Desktop GUI | `Claude Official.app` | `Claude CC.app` | [图形版安装与验证](desktop/README.md) |
+| Docker | `./dual-claude docker run official` | `./dual-claude docker run cc` | 下方 Docker 章节 |
+
+管理脚本只依赖 Python 3.9+ 标准库。CLI 方案需要已安装 `claude`；GUI 方案需要 macOS、Claude Desktop 和 Xcode Command Line Tools；Docker 方案需要 Docker Desktop 与 Compose v2。三种方式可按需选择，GUI 不需要先安装 CLI 或 Docker。
+
+完整设计、配置目录和验收范围见 [plan.md](plan.md)。
 
 ## 直接使用
 
 ```sh
 # 在工程根目录执行
 ./dual-claude install
-./dual-claude doctor --docker
 ```
 
-安装完成且配置好 CC Switch 后，打开两个终端分别运行：
+随后按下方“配置规则”设置 CC Switch 的 **Claude Code** 目录及供应商，运行 `./dual-claude doctor` 检查，再打开两个终端分别运行：
 
 ```sh
 # 终端 A：官方账户，保留原有 macOS Keychain 登录
@@ -81,6 +90,19 @@ claude-cc --setting-sources user,project,local
 
 退出码：`0` 表示所选检查全部通过，`1` 表示诊断/请求未通过，`2` 表示配置或依赖错误，`130` 表示用户中断。`doctor` 的已登录状态不能代替 `smoke` 的请求成功结果。
 
+## Claude Desktop 图形界面（macOS，可选）
+
+```sh
+./dual-claude desktop install
+./dual-claude desktop doctor
+open "$HOME/Applications/Claude Official.app"
+open "$HOME/Applications/Claude CC.app"
+```
+
+会创建个人 Applications 目录中的 `Claude Official.app` 和 `Claude CC.app`。官方使用独立 Profile，CC Switch 继续管理默认 Desktop 第三方配置；原生 CLI 命令不变。首次官方登录需自行完成，第三方模型映射在 CC Switch 的 **Claude Desktop** 页面配置。安装、验证和回退说明见 [desktop/README.md](desktop/README.md)。
+
+已验证官方 GUI 和第三方 GUI 均可返回测试标记，两进程同时运行，官方测试期间第三方网关无新增请求。该结论适用于已验证的版本与配置，具体范围见图形版说明；不代表 CLI 或 Docker 的官方认证已一并验证。
+
 ## Docker
 
 ```sh
@@ -126,6 +148,7 @@ CC_PROXY_BASE_URL=http://host.docker.internal:15721 ./dual-claude docker run cc
 | `DUAL_CLAUDE_CC_CONFIG_DIR` | `~/.claude-cc`，须与 CC Switch 目录一致 |
 | `DUAL_CLAUDE_STATE_DIR` | `~/.local/state/dual-claude`，报告与安装记录 |
 | `DUAL_CLAUDE_BINARY` | PATH 中的 `claude`，可指定其他已安装 CLI |
+| `DUAL_CLAUDE_DESKTOP_APP` | Desktop 原版应用，默认 `/Applications/Claude.app` |
 | `DUAL_CLAUDE_VERSION` | Docker CLI 版本 `2.1.311` |
 | `DUAL_CLAUDE_NODE_IMAGE` | Compose 默认 `node:22-alpine` |
 | `DUAL_CLAUDE_OFFICIAL_WORKDIR` | Docker 官方工作目录，可被 `--workdir` 覆盖 |

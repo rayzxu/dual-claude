@@ -1,10 +1,18 @@
-# 官方 Claude Code 与 CC Switch 第三方源双实例方案
+# Claude 官方与 CC Switch 双源方案：CLI、Desktop 与 Docker
 
 ## 目标与适用范围
 
-在同一台电脑同时运行两个 Claude Code CLI 实例：一个使用官方账户，另一个使用 CC Switch 管理的第三方供应商。CLI 是可多进程运行的客户端，不需要部署两个监听端口的服务。
+在同一台电脑同时使用官方 Claude 与 CC Switch 第三方供应商，覆盖终端和图形两种使用方式。CLI 是可多进程运行的客户端，不需要部署两个监听端口的服务；Desktop 通过不同的用户数据目录提供两个图形入口。
 
-日常使用优先选择独立配置目录；需要进一步隔离依赖和代码执行环境时使用 Docker。Claude Desktop 和 IDE 扩展有各自的配置体系，不属于本工程自动配置的范围。
+日常 CLI 使用优先选择独立配置目录；需要隔离依赖和代码执行环境时使用 Docker。Claude Desktop 提供可选的 macOS 图形启动器，使用独立于 CLI 的配置体系，详见 [desktop/README.md](desktop/README.md)。IDE 扩展不属于本工程自动配置范围。
+
+| 使用方式 | 官方入口 | 第三方入口 | 隔离边界 |
+| --- | --- | --- | --- |
+| CLI | 原生 `claude` | `claude-cc` | 用户配置、认证入口、会话目录 |
+| Desktop | `Claude Official.app` | `Claude CC.app` | 独立官方 Profile 与默认第三方 Profile |
+| Docker | `./dual-claude docker run official` | `./dual-claude docker run cc` | 分离配置卷、工作目录与容器执行环境 |
+
+三种方案按需选择。Desktop 不依赖 Docker，也不要求先安装 CLI 命令。
 
 ## 工程入口
 
@@ -12,8 +20,9 @@
 
 ```sh
 ./dual-claude install
-./dual-claude doctor --docker
 ```
+
+CLI 安装后先配置 CC Switch 的独立目录，再运行 `./dual-claude doctor`；需要容器检查时才添加 `--docker`。仅使用图形版时直接运行 `./dual-claude desktop install`。
 
 安装器使用当前用户的 Home 和工程所在目录生成命令链接，不包含开发者电脑的绝对路径。完整示例见 [README.md](README.md)。
 
@@ -28,6 +37,8 @@
 | 启动容器 | `./dual-claude docker run official` 或 `cc` |
 | 官方容器登录 | `./dual-claude docker login official` |
 | 卸载命令链接 | `./dual-claude uninstall` |
+| 安装图形启动器 | `./dual-claude desktop install` |
+| 图形配置检查 | `./dual-claude desktop doctor` |
 
 ## 本机隔离设计
 
@@ -77,6 +88,32 @@ printf '%s\n' "$HOME/.claude-cc"
 
 脚本从自身位置定位工程，通过 `Path.home()` 获取用户目录，支持相对工作目录和包含空格的参数。安装使用符号链接，工程目录需要保留；移动工程前先卸载，移动后重新安装。
 
+## Desktop 图形方案
+
+CC Switch 继续管理默认 Desktop 配置，额外创建独立官方 Profile。这样无需修改 CC Switch 的固定 Desktop 路径解析，也不会把 CLI 配置目录机制直接套用到 Desktop。
+
+| 目录（相对于 `~/Library/Application Support`） | 用途 | 预期模式 |
+| --- | --- | --- |
+| `Claude` | 默认 Desktop 入口配置 | `3p` |
+| `Claude-3p` | CC Switch Gateway Profile 与第三方本地状态 | `3p` |
+| `Claude-Official` | 额外官方 Profile | `1p` |
+| `Claude-Official-3p` | Desktop 派生配置查找位置，为官方实例保持官方模式 | `1p` |
+
+安装器编译原生启动器，复用已安装且未修改的 Claude Desktop，创建个人 Applications 目录中的两个入口。无需 ImageMagick，不添加开机启动项。重复安装会校验已有应用标识并备份本工程启动器，不覆盖其他应用。
+
+原生启动器显式传入 `--user-data-dir`，清理继承的路由环境变量，检查同 Profile 的重复运行。检查使用进程参数匹配而非 shell 字符串插值，并区分 `Claude`、`Claude-Official` 和默认 `Claude-3p`，避免目录前缀误匹配。
+
+配置顺序为：
+
+1. 执行 `./dual-claude desktop install`。
+2. 在 CC Switch 的 **Claude Desktop** 页面启用供应商，按需选择模型映射并填写实际模型，保持本地路由运行。
+3. 打开 `Claude Official.app` 完成官方登录，打开 `Claude CC.app` 使用第三方。
+4. 执行 `./dual-claude desktop doctor` 检查配置，再分别验证 GUI 请求。
+
+首次官方登录由用户完成，不复制既有 token 或 Cookies。官方云端历史与项目仍绑定登录账户；隔离本地 Profile 不改变云端数据归属。第三方 Gateway 可能提供 Cowork/Code，功能范围不等于完整官方云端 Chat。
+
+两路 GUI 均已实际返回固定标记；官方测试期间第三方网关无新增请求。也已验证双进程同时运行、默认供应商切换不改写独立官方配置。各版本的实际测试范围列在 [图形版验证记录](desktop/README.md#已验证范围)；不由此推断 CLI 或 Docker 的官方请求成功。
+
 ## Docker 设计
 
 文件：`docker/Dockerfile`、`docker/compose.yaml`、`docker/entrypoint.cjs`。
@@ -112,6 +149,9 @@ CC_PROXY_BASE_URL=http://host.docker.internal:15721 ./dual-claude docker run cc
 | 参数传递 | 保留用户显式传入的 Claude 参数及包含空格的值 |
 | 本机真实请求 | 所选实例返回对应固定标记 |
 | 容器真实请求 | 所选容器返回对应固定标记，官方容器先完成独立登录 |
+| Desktop 官方请求 | 独立官方 Profile 登录后返回固定标记，第三方网关无对应新增请求 |
+| Desktop 第三方请求 | GUI 返回固定标记，网关日志显示实际映射模型与 HTTP 成功状态 |
+| Desktop 供应商切换 | 默认 Desktop 切换供应商时，独立官方 Profile 的配置不被改写 |
 | 超时或中断 | 终止本次进程组并清理本次临时容器 |
 | 报告权限 | 摘要报告权限为 `0600`，不保存原始调试日志 |
 | 卸载 | 只移除仍指向本工程的命令链接，保留配置与会话 |
@@ -132,6 +172,8 @@ python3 -m unittest discover -s tests -v
 验证使用临时空目录、固定标记提示，并禁用工具、自定义 hooks 和 MCP。`--budget` 是 CLI 估算预算，不是第三方服务端硬扣费上限。
 
 报告默认位于 `~/.local/state/dual-claude/reports/`，可通过 `DUAL_CLAUDE_STATE_DIR` 覆盖。报告应由使用者在各自环境中生成，不将开发者电脑的运行记录作为通用配置的一部分。
+
+CLI 的 `smoke` 不会操作 GUI，也不能代替 Desktop 实际请求验证。图形版安装和诊断不自动发送模型提示。
 
 ## 故障定位
 
@@ -158,6 +200,8 @@ Docker 构建失败时，检查基础镜像、npm registry、网络与镜像站�
 
 卸载不删除配置、账户登录、会话、报告、备份、Docker 镜像或卷。已有其他会话运行时，不要整体覆盖官方配置文件或 CC Switch 数据库。
 
+Desktop 的两个启动器在退出后可通过 Finder 删除；保留 Profile 目录即可保留各自的本地登录和会话。CLI 的 `uninstall` 仅处理命令链接，不移除图形启动器。需要恢复默认 Desktop 官方模式时，在 CC Switch 的 Claude Desktop 页面切回官方并重启默认实例。
+
 Docker 使用 `--rm` 删除退出后的容器，配置卷继续保留。仅在确定要删除容器登录与会话时才使用 `down -v`。
 
 ## 来源
@@ -168,3 +212,5 @@ Docker 使用 `--rm` 删除退出后的容器，配置卷继续保留。仅在�
 - [官方 Dev Container](https://code.claude.com/docs/en/devcontainer)
 - [CC Switch 配置目录源码](https://github.com/farion1231/cc-switch/blob/v3.20.3/src-tauri/src/config.rs)
 - [Docker Desktop 网络说明](https://docs.docker.com/desktop/features/networking/)
+- [Desktop Profile 启动器来源](https://github.com/jeroenwollaars/claude-dual-launcher)
+- [CC Switch Desktop 配置实现](https://github.com/farion1231/cc-switch/blob/v3.20.3/src-tauri/src/claude_desktop_config.rs)

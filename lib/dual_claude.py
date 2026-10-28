@@ -389,7 +389,7 @@ def positive(value):
 
 
 def parser():
-    result = argparse.ArgumentParser(description="官方 Claude Code 与 CC Switch 双实例管理（无第三方 Python 依赖）。")
+    result = argparse.ArgumentParser(description="Claude 官方与 CC Switch 双源管理：CLI、Desktop、Docker（Python 标准库）。")
     commands = result.add_subparsers(dest="command", required=True)
     for name, help_text in [("install", "安装命令链接，不改账户或 CC Switch 配置"), ("uninstall", "仅移除本工程的命令链接")]:
         sub = commands.add_parser(name, help=help_text)
@@ -414,12 +414,17 @@ def parser():
         sub.add_argument("--workdir")
         sub.add_argument("profile", choices=PROFILES)
         sub.add_argument("claude_args", nargs=argparse.REMAINDER)
+    desktop = commands.add_parser("desktop", help="macOS 图形版双实例安装和配置检查")
+    desktop.add_argument("action", choices=("install", "doctor"))
     return result
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
+        if args.command == "desktop":
+            import desktop_profiles
+            return desktop_profiles.main(args.action)
         if args.command == "install":
             return install(args)
         if args.command == "uninstall":
