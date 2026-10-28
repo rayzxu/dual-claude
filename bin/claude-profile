@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""Dedicated third-party entry point; the native claude command is untouched."""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+from dual_claude import main
+
+if __name__ == "__main__":
+    name = Path(sys.argv[0]).name
+    if name != "claude-cc":
+        sys.exit("Use claude-cc; use the native claude command for official access.")
+    # Do not parse Claude's flags here: pass them through verbatim.
+    raise SystemExit(main(["run", "cc", "--", *sys.argv[1:]]))

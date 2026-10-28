@@ -1,0 +1,6 @@
+__pycache__/
+.DS_Store
+.env
+docker/.env
+docker/project-official/*
+docker/project-cc/*

@@ -1,0 +1,48 @@
+name: dual-claude
+
+x-claude: &claude
+  build:
+    context: .
+    args:
+      NODE_IMAGE: ${DUAL_CLAUDE_NODE_IMAGE:-node:22-alpine}
+      CLAUDE_CODE_VERSION: ${DUAL_CLAUDE_VERSION:-2.1.311}
+  image: dual-claude:${DUAL_CLAUDE_VERSION:-2.1.311}
+  stdin_open: true
+  tty: true
+
+services:
+  official:
+    <<: *claude
+    environment:
+      CLAUDE_CONFIG_DIR: /home/node/.claude
+    volumes:
+      - official-config:/home/node/.claude
+      - type: bind
+        source: ${DUAL_CLAUDE_OFFICIAL_WORKDIR:-./project-official}
+        target: /workspace
+        bind:
+          create_host_path: false
+
+  cc:
+    <<: *claude
+    environment:
+      CLAUDE_CONFIG_DIR: /home/node/.claude
+      CC_CONFIG_SOURCE: /cc-source
+      CC_PROXY_BASE_URL: ${CC_PROXY_BASE_URL:-}
+    volumes:
+      - cc-config:/home/node/.claude
+      - type: bind
+        source: ${DUAL_CLAUDE_CC_CONFIG_DIR:-${HOME}/.claude-cc}
+        target: /cc-source
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${DUAL_CLAUDE_CC_WORKDIR:-./project-cc}
+        target: /workspace
+        bind:
+          create_host_path: false
+
+volumes:
+  official-config:
+  cc-config:
